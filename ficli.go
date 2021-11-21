@@ -40,6 +40,8 @@ func main() {
 
 func doSelect(ctx context.Context, c *firestore.Client, args []string) error {
 	q := strings.Join(args, " ")
+	fmt.Println(q)
+	return nil
 }
 
 func die(format string, args ...interface{}) {
