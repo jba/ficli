@@ -1,2 +1,7 @@
-# ficli
-Firestore command-line tool
+# ficli: a Firestore command-line tool
+
+## Installation
+
+```
+go install github.com/jba/ficli@latest
+```
