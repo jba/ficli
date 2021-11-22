@@ -3,8 +3,6 @@
 package main
 
 import (
-	"errors"
-	"fmt"
 	"io"
 	"strconv"
 	"strings"
@@ -17,6 +15,7 @@ type query struct {
 	selects []string
 	coll    string
 	orders  []string
+	desc    bool
 	limit   int
 }
 
@@ -47,25 +46,33 @@ func init() {
 
 	queryParser = And(
 		Lit("select"),
-		Action(
+		Do(
 			Or(Lit("*"), identList),
 			func(toks []string) error {
 				if toks[0] != "*" {
-					for i := 0; i < len(toks); i += 2 {
-						parsedQuery.selects = append(parsedQuery.selects, toks[i])
-					}
+					parsedQuery.selects = identsFromList(toks)
 				}
 				return nil
 			}),
 		Lit("from"),
-		Action(ident, func(toks []string) error { parsedQuery.coll = toks[0]; return nil }),
-		// TODO: If this Optional fails because the limit arg is not a number (e.g. "limit b"),
-		// then the resulting error is "unconsumed input" rather than the error from the function.
-		// Should we add a Cut() parser that prevents backtracking past a certain point?
+		Do(ident, func(toks []string) error { parsedQuery.coll = toks[0]; return nil }),
+		Optional(And(
+			Lit("order"), Commit, Lit("by"),
+			Do(identList, func(toks []string) error {
+				parsedQuery.orders = identsFromList(toks)
+				return nil
+			}),
+			Do(
+				Or(Lit("asc"), Lit("desc"), Empty),
+				func(toks []string) error {
+					parsedQuery.desc = (len(toks) > 0 && toks[0] == "desc")
+					return nil
+				}),
+		)),
 		Optional(And(
 			Lit("limit"),
 			Commit,
-			Action(Any, func(toks []string) error {
+			Do(Any, func(toks []string) error {
 				n, err := strconv.Atoi(toks[0])
 				if err != nil {
 					return err
@@ -73,6 +80,15 @@ func init() {
 				parsedQuery.limit = n
 				return nil
 			}))))
+}
+
+// skip over commas
+func identsFromList(toks []string) []string {
+	var ids []string
+	for i := 0; i < len(toks); i += 2 {
+		ids = append(ids, toks[i])
+	}
+	return ids
 }
 
 func parseQuery(s string) (*query, error) {
@@ -94,91 +110,6 @@ func parseQuery(s string) (*query, error) {
 	}
 	q := parsedQuery // make a copy
 	return &q, nil
-}
-
-func expect(lex *lexer.Lexer, want string) error {
-	tok, err := lex.Next()
-	if err != nil {
-		return err
-	}
-	if strings.ToLower(tok) != want {
-		return fmt.Errorf("expected %q, saw %q", want, tok)
-	}
-	return nil
-}
-
-func parseSelect(lex *lexer.Lexer, q *query) error {
-	if err := expect(lex, "select"); err != nil {
-		return err
-	}
-	toks, next, err := parseList(lex)
-	fmt.Println("####", toks, next, err)
-	if err != nil {
-		return err
-	}
-	q.selects = toks
-	if strings.ToLower(next) != "from" {
-		return fmt.Errorf(`expected "from", saw %q`, next)
-	}
-	coll, err := lex.Next()
-	fmt.Println("####", coll, err)
-	if err != nil {
-		return err
-	}
-	q.coll = coll
-	for {
-		tok, err := lex.Next()
-		if err == io.EOF {
-			return nil
-		}
-		switch strings.ToLower(tok) {
-		case "where":
-			return errors.New("unimp")
-		case "order":
-			return errors.New("unimp")
-		case "limit":
-			n, err := parseLimit(lex)
-			if err != nil {
-				return err
-			}
-			q.limit = n
-		default:
-			return fmt.Errorf("unknown clause start: %q", tok)
-		}
-	}
-}
-
-func parseList(lex *lexer.Lexer) ([]string, string, error) {
-	var toks []string
-	for {
-		tok, err := lex.Next()
-		if err == io.EOF {
-			return toks, "", nil
-		}
-		if err != nil {
-			return nil, "", err
-		}
-		toks = append(toks, tok)
-		tok2, err := lex.Next()
-		if err != nil && err != io.EOF {
-			return nil, "", err
-		}
-		if tok2 != "," {
-			return toks, tok2, nil
-		}
-	}
-}
-
-func parseLimit(lex *lexer.Lexer) (int, error) {
-	tok, err := lex.Next()
-	if err != nil {
-		return 0, err
-	}
-	n, err := strconv.Atoi(tok)
-	if err != nil {
-		return 0, err
-	}
-	return n, nil
 }
 
 func isIdent(r rune) bool {

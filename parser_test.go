@@ -14,7 +14,7 @@ func TestParse(t *testing.T) {
 	var got query
 	p := And(
 		Lit("select"),
-		Action(
+		Do(
 			Or(Lit("*"), List(Is("identifier", Ident), Lit(","))),
 			func(toks []string) error {
 				if toks[0] != "*" {
@@ -25,14 +25,11 @@ func TestParse(t *testing.T) {
 				return nil
 			}),
 		Lit("from"),
-		Action(Is("identifier", Ident), func(toks []string) error { got.coll = toks[0]; return nil }),
-		// TODO: If this Optional fails because the limit arg is not a number (e.g. "limit b"),
-		// then the resulting error is "unconsumed input" rather than the error from the function.
-		// Should we add a Cut() parser that prevents backtracking past a certain point?
+		Do(Is("identifier", Ident), func(toks []string) error { got.coll = toks[0]; return nil }),
 		Optional(And(
 			Lit("limit"),
 			Commit,
-			Action(Any, func(toks []string) error {
+			Do(Any, func(toks []string) error {
 				n, err := strconv.Atoi(toks[0])
 				if err != nil {
 					return err

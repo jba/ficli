@@ -24,7 +24,7 @@ func (s *state) current() string {
 	if s.atEOF() {
 		return "end of input"
 	}
-	return s.toks[s.pos]
+	return fmt.Sprintf("%q", s.toks[s.pos])
 }
 
 func Parse(toks []string, p parser) error {
@@ -33,7 +33,7 @@ func Parse(toks []string, p parser) error {
 		return err
 	}
 	if s.pos != len(s.toks) {
-		return fmt.Errorf("unconsumed input starting at %q", s.current())
+		return fmt.Errorf("unconsumed input starting at %s", s.current())
 	}
 	return nil
 }
@@ -52,7 +52,7 @@ func And(parsers ...parser) parser {
 func Lit(lit string) parser {
 	return func(s *state) error {
 		if s.atEOF() || s.toks[s.pos] != lit {
-			return fmt.Errorf("expected %q, got %q", lit, s.current())
+			return fmt.Errorf("expected %q, got %s", lit, s.current())
 		}
 		s.pos++
 		return nil
@@ -62,7 +62,7 @@ func Lit(lit string) parser {
 func Is(name string, pred func(s string) bool) parser {
 	return func(s *state) error {
 		if s.atEOF() || !pred(s.toks[s.pos]) {
-			return fmt.Errorf("expected %s, got %q", name, s.current())
+			return fmt.Errorf("expected %s, got %s", name, s.current())
 		}
 		s.pos++
 		return nil
@@ -73,6 +73,7 @@ func Or(parsers ...parser) parser {
 	return func(s *state) error {
 		start := s.pos
 		c := s.committed
+		s.committed = false
 		for _, p := range parsers {
 			err := p(s)
 			if err == nil || s.committed {
@@ -130,7 +131,7 @@ func List(item, sep parser) parser {
 	}
 }
 
-func Action(p parser, f func([]string) error) parser {
+func Do(p parser, f func([]string) error) parser {
 	return func(s *state) error {
 		start := s.pos
 		if err := p(s); err != nil {
