@@ -8,24 +8,12 @@ import (
 	"unicode"
 )
 
-func parse() {
-	Seq(
-		Lit("select"),
-		Action(
-			Or(Lit("*"), List(Ident, Lit(","))),
-			func(toks []string) { q.selects = toks }),
-		Lit("from"),
-		Action(Ident, func(toks []string) { q.coll = toks[0] }),
-		Optional(Seq(Lit("where"), Action(Expr, func(toks []string) {
-			q.wheres = append(q.wheres, toks)
-		}))),
-	)
-}
+type parser func(*state) error
 
 type state struct {
-	toks    []string
-	pos     int
-	failure string
+	toks      []string
+	pos       int
+	committed bool
 }
 
 func (s *state) atEOF() bool {
@@ -41,11 +29,8 @@ func (s *state) current() string {
 
 func Parse(toks []string, p parser) error {
 	s := &state{toks: toks, pos: 0}
-	if !p(s) {
-		if s.failure != "" {
-			return errors.New(s.failure)
-		}
-		return fmt.Errorf("parse failed at %q", s.current())
+	if err := p(s); err != nil {
+		return err
 	}
 	if s.pos != len(s.toks) {
 		return fmt.Errorf("unconsumed input starting at %q", s.current())
@@ -53,73 +38,105 @@ func Parse(toks []string, p parser) error {
 	return nil
 }
 
-type parser func(*state) bool
-
 func And(parsers ...parser) parser {
-	return func(s *state) bool {
+	return func(s *state) error {
 		for _, p := range parsers {
-			if !p(s) {
-				return false
+			if err := p(s); err != nil {
+				return err
 			}
 		}
-		return true
+		return nil
 	}
 }
 
 func Lit(lit string) parser {
-	return func(s *state) bool {
+	return func(s *state) error {
 		if s.atEOF() || s.toks[s.pos] != lit {
-			s.failure = fmt.Sprintf("expected %q, got %q", lit, s.current())
-			return false
+			return fmt.Errorf("expected %q, got %q", lit, s.current())
 		}
 		s.pos++
-		return true
+		return nil
 	}
 }
 
 func Is(name string, pred func(s string) bool) parser {
-	return func(s *state) bool {
+	return func(s *state) error {
 		if s.atEOF() || !pred(s.toks[s.pos]) {
-			s.failure = fmt.Sprintf("expected %s, got %q", name, s.current())
-			return false
+			return fmt.Errorf("expected %s, got %q", name, s.current())
 		}
 		s.pos++
-		return true
+		return nil
 	}
 }
 
 func Or(parsers ...parser) parser {
-	return func(s *state) bool {
+	return func(s *state) error {
 		start := s.pos
+		c := s.committed
 		for _, p := range parsers {
-			if p(s) {
-				return true
+			err := p(s)
+			if err == nil || s.committed {
+				s.committed = c
+				return err
 			}
 			s.pos = start
 		}
-		s.failure = fmt.Sprintf("parse failed at %q", s.current())
-		return false
+		return fmt.Errorf("parse failed at %q", s.current())
 	}
 }
+
+var (
+	Empty parser = func(*state) error {
+		return nil
+	}
+
+	Any parser = func(s *state) error {
+		if s.atEOF() {
+			return errors.New("unexpected end of unput")
+		}
+		s.pos++
+		return nil
+	}
+
+	Commit parser = func(s *state) error {
+		s.committed = true
+		return nil
+	}
+)
 
 func Optional(p parser) parser {
-	return func(s *state) bool {
-		start := s.pos
-		if p(s) {
-			return true
-		}
+	return Or(p, Empty)
+}
+
+func opt(p parser, s *state) bool {
+	start := s.pos
+	if p(s) != nil {
 		s.pos = start
-		return true
+		return false
+	}
+	return true
+}
+
+func List(item, sep parser) parser {
+	return func(s *state) error {
+		for {
+			if err := item(s); err != nil {
+				return err
+			}
+			if !opt(sep, s) {
+				return nil
+			}
+		}
 	}
 }
 
-func Action(p parser, f func([]string)) {
-	return func(s *state) bool {
+func Action(p parser, f func([]string) error) parser {
+	return func(s *state) error {
 		start := s.pos
-		if p(s) {
-			f(s.toks[start:s.pos])
+		if err := p(s); err != nil {
+			return err
 		}
-		return false
+		return f(s.toks[start:s.pos])
 	}
 }
 

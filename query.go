@@ -26,7 +26,11 @@ type query struct {
 //     order by ID [(asc|desc)]
 //     limit N
 
-var lc lexer.Config
+var (
+	lc          lexer.Config
+	queryParser parser
+	parsedQuery query
+)
 
 func init() {
 	lc.Install(unicode.IsSpace, lexer.SkipWhile(unicode.IsSpace))
@@ -37,14 +41,58 @@ func init() {
 	}
 	lc.Install(lexer.IsRune('>'), lexer.ReadOneOrTwo('='))
 	lc.Install(lexer.IsRune('<'), lexer.ReadOneOrTwo('='))
+
+	ident := Is("identifier", Ident)
+	identList := List(ident, Lit(","))
+
+	queryParser = And(
+		Lit("select"),
+		Action(
+			Or(Lit("*"), identList),
+			func(toks []string) error {
+				if toks[0] != "*" {
+					for i := 0; i < len(toks); i += 2 {
+						parsedQuery.selects = append(parsedQuery.selects, toks[i])
+					}
+				}
+				return nil
+			}),
+		Lit("from"),
+		Action(ident, func(toks []string) error { parsedQuery.coll = toks[0]; return nil }),
+		// TODO: If this Optional fails because the limit arg is not a number (e.g. "limit b"),
+		// then the resulting error is "unconsumed input" rather than the error from the function.
+		// Should we add a Cut() parser that prevents backtracking past a certain point?
+		Optional(And(
+			Lit("limit"),
+			Commit,
+			Action(Any, func(toks []string) error {
+				n, err := strconv.Atoi(toks[0])
+				if err != nil {
+					return err
+				}
+				parsedQuery.limit = n
+				return nil
+			}))))
 }
 
 func parseQuery(s string) (*query, error) {
 	lex := lexer.New(strings.NewReader(s), &lc)
-	var q query
-	if err := parseSelect(lex, &q); err != nil {
+	var toks []string
+	for {
+		tok, err := lex.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		toks = append(toks, tok)
+	}
+	parsedQuery = query{}
+	if err := Parse(toks, queryParser); err != nil {
 		return nil, err
 	}
+	q := parsedQuery // make a copy
 	return &q, nil
 }
 
