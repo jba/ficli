@@ -155,6 +155,8 @@ github.com/jba/lexer v0.0.0-20211121141253-23777c57f58e h1:JF6qw2x9xiIqKIRTJXqpI
 github.com/jba/lexer v0.0.0-20211121141253-23777c57f58e/go.mod h1:IVRGz7T/JuBucHXczkPFGV5kd3mSp1032LTN6AN4otI=
 github.com/jba/lexer v0.0.0-20211122135229-358419959f10 h1:DGngJ1cZbMP47xnN0vI26FqR+wqRQP0YZxBClE6Nf7o=
 github.com/jba/lexer v0.0.0-20211122135229-358419959f10/go.mod h1:IVRGz7T/JuBucHXczkPFGV5kd3mSp1032LTN6AN4otI=
+github.com/jba/lexer v0.0.1 h1:60cVe/hzcUjF4sor/CTdrw4uu4sKbpQg8CvHFMWG2MA=
+github.com/jba/lexer v0.0.1/go.mod h1:IVRGz7T/JuBucHXczkPFGV5kd3mSp1032LTN6AN4otI=
 github.com/jstemmer/go-junit-report v0.0.0-20190106144839-af01ea7f8024/go.mod h1:6v2b51hI/fHJwM22ozAgKL4VKDeJcHhJFhtBdhmNjmU=
 github.com/jstemmer/go-junit-report v0.9.1/go.mod h1:Brl9GWCQeLvo8nXZwPNNblvFj/XSXhF0NWZEnDohbsk=
 github.com/kisielk/gotool v1.0.0/go.mod h1:XhKaO+MFFWcvkIS/tQcRk01m1F5IRFswLeQ+oQHNcck=

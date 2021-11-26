@@ -5,6 +5,7 @@ package main
 import (
 	"testing"
 
+	"cloud.google.com/go/firestore"
 	"github.com/google/go-cmp/cmp"
 )
 
@@ -21,26 +22,45 @@ func TestParseQuery(t *testing.T) {
 		},
 		{
 			"select * from c order by a, b",
-			query{coll: "c", orders: []string{"a", "b"}},
+			query{coll: "c", orders: []order{{"a", firestore.Asc}, {"b", firestore.Asc}}},
 		},
 		{
 			"select * from c order by a, b limit 10",
-			query{coll: "c", orders: []string{"a", "b"}, limit: 10},
+			query{coll: "c", orders: []order{{"a", firestore.Asc}, {"b", firestore.Asc}}, limit: 10},
 		},
 		{
-			"select * from c order by a, b asc limit 10",
-			query{coll: "c", orders: []string{"a", "b"}, limit: 10},
+			"select * from c order by a desc, b asc limit 10",
+			query{coll: "c", orders: []order{{"a", firestore.Desc}, {"b", firestore.Asc}}, limit: 10},
 		},
 		{
 			"select * from c order by a, b desc limit 10",
-			query{coll: "c", orders: []string{"a", "b"}, desc: true, limit: 10},
+			query{coll: "c", orders: []order{{"a", firestore.Asc}, {"b", firestore.Desc}}, limit: 10},
+		},
+		{
+			"select * from c where a > 0",
+			query{coll: "c", wheres: []where{{"a", ">", "0"}}},
+		},
+		{
+			"select * from c where a > 0 and b = d",
+			query{coll: "c", wheres: []where{
+				{"a", ">", "0"},
+				{"b", "=", "d"},
+			}},
+		},
+		{
+			"select * from c where a > 0 and b = d and s3<=2 limit 5",
+			query{coll: "c", limit: 5, wheres: []where{
+				{"a", ">", "0"},
+				{"b", "=", "d"},
+				{"s3", "<=", "2"},
+			}},
 		},
 	} {
 		got, err := parseQuery(test.in)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if diff := cmp.Diff(&test.want, got, cmp.AllowUnexported(query{})); diff != "" {
+		if diff := cmp.Diff(&test.want, got, cmp.AllowUnexported(query{}, order{}, where{})); diff != "" {
 			t.Errorf("%s: -want, +got:\n%s", test.in, diff)
 		}
 	}
