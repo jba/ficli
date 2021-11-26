@@ -38,17 +38,6 @@ func Parse(toks []string, p parser) error {
 	return nil
 }
 
-func And(parsers ...parser) parser {
-	return func(s *state) error {
-		for _, p := range parsers {
-			if err := p(s); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-}
-
 func Lit(lit string) parser {
 	return func(s *state) error {
 		if s.atEOF() || s.toks[s.pos] != lit {
@@ -65,6 +54,17 @@ func Is(name string, pred func(s string) bool) parser {
 			return fmt.Errorf("expected %s, got %s", name, s.current())
 		}
 		s.pos++
+		return nil
+	}
+}
+
+func And(parsers ...parser) parser {
+	return func(s *state) error {
+		for _, p := range parsers {
+			if err := p(s); err != nil {
+				return err
+			}
+		}
 		return nil
 	}
 }
@@ -109,26 +109,26 @@ func Optional(p parser) parser {
 	return Or(p, Empty)
 }
 
-func opt(p parser, s *state) bool {
-	start := s.pos
-	if p(s) != nil {
-		s.pos = start
-		return false
-	}
-	return true
+// Zero or more p's.
+func Repeat(p parser) parser {
+	// We can't write
+	//  Or(And(p, Repeat(p)), Empty)
+	// as we would like. Go is applicative-order, so the recursive call to Repeat happens
+	// immediately and we have infinite recursion. We must delay the recursion.
+	return Or(
+		And(p, func(s *state) error { return Repeat(p)(s) }),
+		Empty)
 }
 
+// non-empty list:
+//   item
+// or
+//   item sep item
+// or
+//   item sep item sep item
+// etc.
 func List(item, sep parser) parser {
-	return func(s *state) error {
-		for {
-			if err := item(s); err != nil {
-				return err
-			}
-			if !opt(sep, s) {
-				return nil
-			}
-		}
-	}
+	return And(item, Repeat(And(sep, item)))
 }
 
 func Do(p parser, f func([]string) error) parser {

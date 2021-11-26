@@ -92,3 +92,14 @@ func TestParse(t *testing.T) {
 		}
 	}
 }
+
+func TestRepeat(t *testing.T) {
+	p := Repeat(Lit("x"))
+	var xs []string
+	for i := 0; i < 3; i++ {
+		if err := Parse(xs, p); err != nil {
+			t.Fatal(err)
+		}
+		xs = append(xs, "x")
+	}
+}
