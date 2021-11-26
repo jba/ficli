@@ -3,17 +3,17 @@
 package main
 
 import (
-	"errors"
 	"fmt"
+	"strconv"
 	"unicode"
 )
 
-type parser func(*state) error
+type parser func(*state)
 
 type state struct {
-	toks      []string
-	pos       int
-	committed bool
+	toks       []string
+	start, pos int
+	committed  bool
 }
 
 func (s *state) atEOF() bool {
@@ -24,12 +24,38 @@ func (s *state) current() string {
 	if s.atEOF() {
 		return "end of input"
 	}
-	return fmt.Sprintf("%q", s.toks[s.pos])
+	return strconv.Quote(s.toks[s.pos])
 }
 
-func Parse(toks []string, p parser) error {
+func (s *state) Tokens() []string {
+	return s.toks[s.start:s.pos]
+}
+
+func (s *state) Token() string {
+	if s.pos-s.start > 1 {
+		panic("more than one token")
+	}
+	if s.pos == s.start {
+		return ""
+	}
+	return s.toks[s.start]
+}
+
+type failure struct {
+	err error
+}
+
+func (s *state) fail(err error) {
+	panic(failure{err})
+}
+
+func (s *state) Failf(format string, args ...interface{}) {
+	s.fail(fmt.Errorf(format, args...))
+}
+
+func Parse(p parser, toks []string) error {
 	s := &state{toks: toks, pos: 0}
-	if err := p(s); err != nil {
+	if err := parse(p, s); err != nil {
 		return err
 	}
 	if s.pos != len(s.toks) {
@@ -38,70 +64,78 @@ func Parse(toks []string, p parser) error {
 	return nil
 }
 
+func parse(p parser, s *state) (err error) {
+	defer func() {
+		if x := recover(); x != nil {
+			if f, ok := x.(failure); ok {
+				err = f.err
+			} else {
+				panic(x)
+			}
+		}
+	}()
+	p(s)
+	return nil
+}
+
 func Lit(lit string) parser {
-	return func(s *state) error {
+	return func(s *state) {
 		if s.atEOF() || s.toks[s.pos] != lit {
-			return fmt.Errorf("expected %q, got %s", lit, s.current())
+			s.Failf("expected %q, got %s", lit, s.current())
 		}
 		s.pos++
-		return nil
 	}
 }
 
 func Is(name string, pred func(s string) bool) parser {
-	return func(s *state) error {
+	return func(s *state) {
 		if s.atEOF() || !pred(s.toks[s.pos]) {
-			return fmt.Errorf("expected %s, got %s", name, s.current())
+			s.Failf("expected %s, got %s", name, s.current())
 		}
 		s.pos++
-		return nil
 	}
 }
 
 func And(parsers ...parser) parser {
-	return func(s *state) error {
+	return func(s *state) {
 		for _, p := range parsers {
-			if err := p(s); err != nil {
-				return err
+			if err := parse(p, s); err != nil {
+				s.fail(err)
 			}
 		}
-		return nil
 	}
 }
 
 func Or(parsers ...parser) parser {
-	return func(s *state) error {
+	return func(s *state) {
 		start := s.pos
-		c := s.committed
+		defer func(c bool) { s.committed = c }(s.committed)
 		s.committed = false
+
 		for _, p := range parsers {
-			err := p(s)
-			if err == nil || s.committed {
-				s.committed = c
-				return err
+			err := parse(p, s)
+			if err == nil {
+				return
+			}
+			if s.committed {
+				s.fail(err)
 			}
 			s.pos = start
 		}
-		return fmt.Errorf("parse failed at %q", s.current())
+		s.Failf("parse failed at %q", s.current())
 	}
 }
 
 var (
-	Empty parser = func(*state) error {
-		return nil
-	}
+	Empty parser = func(*state) {}
 
-	Any parser = func(s *state) error {
+	Commit parser = func(s *state) { s.committed = true }
+
+	Any parser = func(s *state) {
 		if s.atEOF() {
-			return errors.New("unexpected end of unput")
+			s.Failf("unexpected end of unput")
 		}
 		s.pos++
-		return nil
-	}
-
-	Commit parser = func(s *state) error {
-		s.committed = true
-		return nil
 	}
 )
 
@@ -116,7 +150,7 @@ func Repeat(p parser) parser {
 	// as we would like. Go is applicative-order, so the recursive call to Repeat happens
 	// immediately and we have infinite recursion. We must delay the recursion.
 	return Or(
-		And(p, func(s *state) error { return Repeat(p)(s) }),
+		And(p, func(s *state) { Repeat(p)(s) }),
 		Empty)
 }
 
@@ -131,13 +165,12 @@ func List(item, sep parser) parser {
 	return And(item, Repeat(And(sep, item)))
 }
 
-func Do(p parser, f func([]string) error) parser {
-	return func(s *state) error {
+func Do(p parser, f func(*state)) parser {
+	return func(s *state) {
 		start := s.pos
-		if err := p(s); err != nil {
-			return err
-		}
-		return f(s.toks[start:s.pos])
+		p(s)
+		s.start = start
+		f(s)
 	}
 }
 

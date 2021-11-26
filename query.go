@@ -43,7 +43,7 @@ func parseQuery(s string) (*query, error) {
 		toks = append(toks, tok)
 	}
 	parsedQuery = query{}
-	if err := Parse(toks, queryParser); err != nil {
+	if err := Parse(queryParser, toks); err != nil {
 		return nil, err
 	}
 	q := parsedQuery // make a copy
@@ -61,13 +61,6 @@ var (
 	queryParser parser
 	parsedQuery query
 )
-
-func noerr(f func([]string)) func([]string) error {
-	return func(toks []string) error {
-		f(toks)
-		return nil
-	}
-}
 
 func init() {
 	lc.Install(unicode.IsSpace, lexer.SkipWhile(unicode.IsSpace))
@@ -90,44 +83,45 @@ func init() {
 		return true
 	})
 
-	expr := Do(And(ident, Any, Any), noerr(func(toks []string) {
+	expr := Do(And(ident, Any, Any), func(s *state) {
+		toks := s.Tokens()
 		parsedQuery.wheres = append(parsedQuery.wheres, where{toks[0], toks[1], toks[2]})
-	}))
+	})
 
 	queryParser = And(
 		Lit("select"),
 		Or(Lit("*"), Lit("all"), List(
-			Do(ident, noerr(func(toks []string) {
-				parsedQuery.selects = append(parsedQuery.selects, toks[0])
-			})),
+			Do(ident, func(s *state) {
+				parsedQuery.selects = append(parsedQuery.selects, s.Token())
+			}),
 			Lit(","))),
 		Lit("from"),
-		Do(path, noerr(func(toks []string) { parsedQuery.coll = toks[0] })),
+		Do(path, func(s *state) { parsedQuery.coll = s.Token() }),
 		Optional(And(Lit("where"), Commit, List(expr, Lit("and")))),
 		Optional(And(
 			Lit("order"), Commit, Lit("by"),
 			List(
 				Do(
 					And(ident, Or(Lit("asc"), Lit("desc"), Empty)),
-					noerr(func(toks []string) {
+					func(s *state) {
+						toks := s.Tokens()
 						dir := firestore.Asc
 						if len(toks) > 1 && toks[1] == "desc" {
 							dir = firestore.Desc
 						}
 						parsedQuery.orders = append(parsedQuery.orders, order{toks[0], dir})
-					})),
+					}),
 				Lit(",")),
 		)),
 		Optional(And(
 			Lit("limit"),
 			Commit,
-			Do(Any, func(toks []string) error {
-				n, err := strconv.Atoi(toks[0])
+			Do(Any, func(s *state) {
+				n, err := strconv.Atoi(s.Token())
 				if err != nil {
-					return err
+					s.fail(err)
 				}
 				parsedQuery.limit = n
-				return nil
 			}))))
 }
 

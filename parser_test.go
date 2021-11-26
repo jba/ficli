@@ -10,32 +10,48 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-func TestParse(t *testing.T) {
+// func TestParse(t *testing.T) {
+// 	for _, test := range []struct {
+// 		p  parser
+// 		in string
+// 	}{
+// 		{Or(Lit("x"), Empty), "x"},
+// 		{Do(Or(Lit("x"), Empty), func(toks []string) error {
+// 			return nil
+// 		}), "x"},
+// 	} {
+// 		err := Parse(test.p, strings.Fields(test.in))
+// 		if err != nil {
+// 			t.Fatalf("%q: %v", test.in, err)
+// 		}
+// 	}
+// }
+
+func TestParse2(t *testing.T) {
 	var got query
 	p := And(
 		Lit("select"),
 		Do(
 			Or(Lit("*"), List(Is("identifier", Ident), Lit(","))),
-			func(toks []string) error {
+			func(s *state) {
+				toks := s.Tokens()
 				if toks[0] != "*" {
 					for i := 0; i < len(toks); i += 2 {
 						got.selects = append(got.selects, toks[i])
 					}
 				}
-				return nil
 			}),
 		Lit("from"),
-		Do(Is("identifier", Ident), func(toks []string) error { got.coll = toks[0]; return nil }),
+		Do(Is("identifier", Ident), func(s *state) { got.coll = s.Token() }),
 		Optional(And(
 			Lit("limit"),
 			Commit,
-			Do(Any, func(toks []string) error {
-				n, err := strconv.Atoi(toks[0])
+			Do(Any, func(s *state) {
+				n, err := strconv.Atoi(s.Token())
 				if err != nil {
-					return err
+					s.fail(err)
 				}
 				got.limit = n
-				return nil
 			}))))
 	for _, test := range []struct {
 		in   string
@@ -76,7 +92,7 @@ func TestParse(t *testing.T) {
 		},
 	} {
 		got = query{}
-		err := Parse(strings.Fields(test.in), p)
+		err := Parse(p, strings.Fields(test.in))
 		if err == nil {
 			if test.err != "" {
 				t.Errorf("%q: got success, want error", test.in)
@@ -97,7 +113,7 @@ func TestRepeat(t *testing.T) {
 	p := Repeat(Lit("x"))
 	var xs []string
 	for i := 0; i < 3; i++ {
-		if err := Parse(xs, p); err != nil {
+		if err := Parse(p, xs); err != nil {
 			t.Fatal(err)
 		}
 		xs = append(xs, "x")
