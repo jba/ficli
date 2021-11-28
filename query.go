@@ -43,15 +43,6 @@ func parseQuery(s string) (*query, error) {
 var queryParser parco.Parser
 
 func init() {
-	// lc.Install(unicode.IsSpace, lexer.SkipWhile(unicode.IsSpace))
-	// lc.Install(unicode.IsLetter, lexer.ReadWhile(isPathRune))
-	// lc.Install(unicode.IsDigit, lexer.ReadWhile(unicode.IsDigit))
-	// for _, r := range "+().,*=" {
-	// 	lc.Install(lexer.IsRune(r), lexer.ReadRune(r))
-	// }
-	// lc.Install(lexer.IsRune('>'), lexer.ReadOneOrTwo('='))
-	// lc.Install(lexer.IsRune('<'), lexer.ReadOneOrTwo('='))
-
 	type Value = parco.Value
 
 	var (
@@ -64,7 +55,9 @@ func init() {
 
 		ident = Regexp("identifier", `[_\pL][_\pL\p{Nd}]*`)
 
-		path = parco.While("path", isPathRune)
+		path = parco.While("path", func(r rune) bool {
+			return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_' || r == '-' || r == '/'
+		})
 	)
 
 	// selectFrom parses "select ... from coll" and returns a *query.
@@ -151,40 +144,4 @@ func init() {
 		}
 		return q
 	})
-
-	// ).Do(func(vs []Value) Value {
-	// 	// vs[0] is the query, vs[1] if it exists is a slice of where clauses.
-	// 	q := vs[0].(*query)
-	// 	if len(vs) > 1 {
-	// 		q.wheres = vs[1].([]where)
-	// 	}
-	// 	return q
-	// }),
-	// 	Opt(And(
-	// 	Word("order"), parco.Cut, Word("by"),
-	// 		parco.List(And(ident, Or(Word("asc"), Word("desc"), Empty)).Do(
-	// 			func(vs []Value) Value {
-	// 				dir := firestore.Asc
-	// 				if len(vs) > 1 && vs[1] == "desc" {
-	// 					dir = firestore.Desc
-	// 				}
-	// 				return order{vs[0].(string), dir}
-	// 			}),
-	// 		}))),
-	// ).Do(func(vs []Value) Value {
-	// 	// vs[0] is query, vs[1] is a []order
-
-}
-
-// skip over commas
-func identsFromList(toks []string) []string {
-	var ids []string
-	for i := 0; i < len(toks); i += 2 {
-		ids = append(ids, toks[i])
-	}
-	return ids
-}
-
-func isPathRune(r rune) bool {
-	return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_' || r == '-' || r == '/'
 }

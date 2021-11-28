@@ -32,9 +32,21 @@ var commands = map[string]func(context.Context, *firestore.Client, []string) err
 }
 
 func main() {
+	flag.Usage = func() {
+		out := flag.CommandLine.Output()
+		fmt.Fprintf(out, "Usage of %s:\n", os.Args[0])
+		fmt.Fprintln(out, "  get path1 [path2 ...]")
+		fmt.Fprintln(out, "  set path1 key1:value1 [key2:value2 ...]")
+		fmt.Fprintln(out, "  delete path1 [path2 ...]")
+		fmt.Fprintln(out, "  select (* | all | id, id, ...) from coll [where ...] [order by ..] [limit N]")
+		fmt.Fprintln(out)
+		flag.PrintDefaults()
+	}
 	flag.Parse()
 	if *project == "" {
-		die("need -project")
+		fmt.Fprintln(os.Stderr, "need -project")
+		flag.Usage()
+		os.Exit(1)
 	}
 
 	ctx := context.Background()
@@ -206,9 +218,17 @@ func displayDocs(w io.Writer, docsnaps []*firestore.DocumentSnapshot, cols []str
 			io.WriteString(tw, "\n")
 			for _, ds := range docsnaps {
 				d := ds.Data()
-				fmt.Fprint(tw, d[cols[0]])
+
+				field := func(s string) interface{} {
+					if s == "ID" {
+						return ds.Ref.ID
+					}
+					return d[s]
+				}
+
+				fmt.Fprint(tw, field(cols[0]))
 				for _, c := range cols[1:] {
-					fmt.Fprintf(tw, "\t%v", d[c])
+					fmt.Fprintf(tw, "\t%v", field(c))
 				}
 				io.WriteString(tw, "\n")
 			}
