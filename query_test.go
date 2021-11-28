@@ -58,7 +58,7 @@ func TestParseQuery(t *testing.T) {
 	} {
 		got, err := parseQuery(test.in)
 		if err != nil {
-			t.Fatal(err)
+			t.Fatalf("%s: %v", test.in, err)
 		}
 		if diff := cmp.Diff(&test.want, got, cmp.AllowUnexported(query{}, order{}, where{})); diff != "" {
 			t.Errorf("%s: -want, +got:\n%s", test.in, diff)

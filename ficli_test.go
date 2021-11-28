@@ -11,7 +11,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 )
 
-func Test(t *testing.T) {
+func TestFirestore(t *testing.T) {
 	type data = map[string]interface{}
 
 	if *project == "" {

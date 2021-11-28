@@ -122,7 +122,7 @@ func runQuery(ctx context.Context, c *firestore.Client, q *query) ([]*firestore.
 		fq = fq.OrderBy(ord.path, ord.dir)
 	}
 	if q.limit > 0 {
-		fq = fq.Limit(q.limit)
+		fq = fq.Limit(int(q.limit))
 	}
 	return fq.Documents(ctx).GetAll()
 }
