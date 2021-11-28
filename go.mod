@@ -5,7 +5,8 @@ go 1.17
 require (
 	cloud.google.com/go/firestore v1.6.1
 	github.com/google/go-cmp v0.5.6
-	github.com/jba/parco v0.0.1
+	github.com/jba/parco v0.0.3
+	google.golang.org/grpc v1.40.0
 )
 
 require (
@@ -22,6 +23,5 @@ require (
 	google.golang.org/api v0.59.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20211028162531-8db9c33dc351 // indirect
-	google.golang.org/grpc v1.40.0 // indirect
 	google.golang.org/protobuf v1.27.1 // indirect
 )
