@@ -42,11 +42,10 @@ func parseQuery(s string) (*query, error) {
 		}
 		toks = append(toks, tok)
 	}
-	parsedQuery = query{}
-	if err := Parse(queryParser, toks); err != nil {
+	var q query
+	if err := Parse(queryParser, toks, &q); err != nil {
 		return nil, err
 	}
-	q := parsedQuery // make a copy
 	return &q, nil
 }
 
@@ -59,7 +58,6 @@ func parseQuery(s string) (*query, error) {
 var (
 	lc          lexer.Config
 	queryParser parser
-	parsedQuery query
 )
 
 func init() {
@@ -83,45 +81,48 @@ func init() {
 		return true
 	})
 
-	expr := Do(And(ident, Any, Any), func(s *state) {
+	expr := Do(And(ident, Any, Any), func(s *State) {
 		toks := s.Tokens()
-		parsedQuery.wheres = append(parsedQuery.wheres, where{toks[0], toks[1], toks[2]})
+		wheres := &s.Value.(*query).wheres
+		*wheres = append(*wheres, where{toks[0], toks[1], toks[2]})
 	})
 
 	queryParser = And(
 		Lit("select"),
 		Or(Lit("*"), Lit("all"), List(
-			Do(ident, func(s *state) {
-				parsedQuery.selects = append(parsedQuery.selects, s.Token())
+			Do(ident, func(s *State) {
+				selects := &s.Value.(*query).selects
+				*selects = append(*selects, s.Token())
 			}),
 			Lit(","))),
 		Lit("from"),
-		Do(path, func(s *state) { parsedQuery.coll = s.Token() }),
+		Do(path, func(s *State) { s.Value.(*query).coll = s.Token() }),
 		Optional(And(Lit("where"), Commit, List(expr, Lit("and")))),
 		Optional(And(
 			Lit("order"), Commit, Lit("by"),
 			List(
 				Do(
 					And(ident, Or(Lit("asc"), Lit("desc"), Empty)),
-					func(s *state) {
+					func(s *State) {
 						toks := s.Tokens()
 						dir := firestore.Asc
 						if len(toks) > 1 && toks[1] == "desc" {
 							dir = firestore.Desc
 						}
-						parsedQuery.orders = append(parsedQuery.orders, order{toks[0], dir})
+						orders := &s.Value.(*query).orders
+						*orders = append(*orders, order{toks[0], dir})
 					}),
 				Lit(",")),
 		)),
 		Optional(And(
 			Lit("limit"),
 			Commit,
-			Do(Any, func(s *state) {
+			Do(Any, func(s *State) {
 				n, err := strconv.Atoi(s.Token())
 				if err != nil {
 					s.fail(err)
 				}
-				parsedQuery.limit = n
+				s.Value.(*query).limit = n
 			}))))
 }
 
