@@ -27,6 +27,7 @@ var (
 var commands = map[string]func(context.Context, *firestore.Client, []string) error{
 	"set":    doSet,
 	"get":    doGet,
+	"delete": doDelete,
 	"select": doSelect,
 }
 
@@ -84,6 +85,22 @@ func doGet(ctx context.Context, c *firestore.Client, args []string) error {
 			return err
 		}
 		fmt.Printf("%s: %v\n", a, ds.Data())
+	}
+	return nil
+}
+
+func doDelete(ctx context.Context, c *firestore.Client, args []string) error {
+	if len(args) < 1 {
+		return errors.New("usage: delete path1 [path2 ...]")
+	}
+	for _, a := range args {
+		dr := c.Doc(a)
+		if dr == nil {
+			return fmt.Errorf("invalid path %q", a)
+		}
+		if _, err := dr.Delete(ctx); err != nil {
+			return fmt.Errorf("%s: %w", a, err)
+		}
 	}
 	return nil
 }

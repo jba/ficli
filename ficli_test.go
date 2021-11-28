@@ -9,6 +9,8 @@ import (
 
 	"cloud.google.com/go/firestore"
 	"github.com/google/go-cmp/cmp"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func TestFirestore(t *testing.T) {
@@ -81,6 +83,12 @@ func TestFirestore(t *testing.T) {
 		if diff := cmp.Diff(test.want, got); diff != "" {
 			t.Errorf("%q: (-want, +got):\n%s", test.q, diff)
 		}
+	}
+
+	run("delete cities/miami")
+	ds, err = client.Doc("cities/miami").Get(ctx)
+	if status.Code(err) != codes.NotFound {
+		t.Fatalf("got %v, wanted NotFound", err)
 	}
 }
 
