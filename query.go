@@ -85,7 +85,7 @@ func init() {
 	// whereClause parses "where expr {AND expr}" and returns a []where.
 	whereClause := And(
 		Word("where"), parco.Cut,
-		parco.List(And(ident, Regexp("op", `=|[<>]=?`), Regexp("arg", `[^\s]+`)).Do(
+		parco.List(And(ident, Regexp("op", `==|[<>]=?`), Regexp("arg", `[^\s]+`)).Do(
 			func(vs []Value) Value {
 				return where{vs[0].(string), vs[1].(string), vs[2].(string)}
 			}), Word("and"))).Do(
