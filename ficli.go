@@ -29,6 +29,7 @@ var commands = map[string]func(context.Context, *firestore.Client, []string) err
 	"get":    doGet,
 	"delete": doDelete,
 	"select": doSelect,
+	"docs":   doDocs,
 }
 
 func main() {
@@ -39,6 +40,7 @@ func main() {
 		fmt.Fprintln(out, "  set path1 key1:value1 [key2:value2 ...]")
 		fmt.Fprintln(out, "  delete path1 [path2 ...]")
 		fmt.Fprintln(out, "  select (* | all | id, id, ...) from coll [where ...] [order by ..] [limit N]")
+		fmt.Fprintln(out, "  docs coll")
 		fmt.Fprintln(out)
 		flag.PrintDefaults()
 	}
@@ -132,6 +134,21 @@ func doSelect(ctx context.Context, c *firestore.Client, args []string) error {
 		return nil
 	}
 	displayDocs(os.Stdout, docsnaps, q.selects)
+	return nil
+}
+
+func doDocs(ctx context.Context, c *firestore.Client, args []string) error {
+	if len(args) != 1 {
+		return errors.New("usage: docs COLLECTION")
+	}
+	coll := c.Collection(args[0])
+	docsnaps, err := coll.DocumentRefs(ctx).GetAll()
+	if err != nil {
+		return err
+	}
+	for _, ds := range docsnaps {
+		fmt.Println(ds.ID)
+	}
 	return nil
 }
 
