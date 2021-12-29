@@ -16,11 +16,12 @@ import (
 func TestFirestore(t *testing.T) {
 	type data = map[string]interface{}
 
-	if *project == "" {
+	if flags.Project == "" {
 		t.Skip("no -project")
 	}
 	ctx := context.Background()
-	client, err := firestore.NewClient(ctx, *project)
+	var err error
+	client, err = firestore.NewClient(ctx, flags.Project)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -28,7 +29,7 @@ func TestFirestore(t *testing.T) {
 
 	run := func(s string) {
 		t.Helper()
-		if err := runCommand(ctx, client, strings.Fields(s)); err != nil {
+		if err := top.Run(ctx, strings.Fields(s)); err != nil {
 			t.Fatal(err)
 		}
 	}

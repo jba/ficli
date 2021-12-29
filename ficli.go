@@ -6,7 +6,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -17,67 +16,54 @@ import (
 	"text/tabwriter"
 
 	"cloud.google.com/go/firestore"
+	"github.com/jba/cli"
 )
 
-var (
-	project = flag.String("project", "", "Google Cloud project ID")
-	format  = flag.String("format", "table", "output format (table, json)")
-)
-
-var commands = map[string]func(context.Context, *firestore.Client, []string) error{
-	"set":    doSet,
-	"get":    doGet,
-	"delete": doDelete,
-	"select": doSelect,
-	"docs":   doDocs,
+var flags = struct {
+	Project string `cli:"flag=, Google Cloud project ID"`
+	Format  string `cli:"flag=, oneof=table|json, output format"`
+}{
+	Format: "table",
 }
 
+var top = cli.Top(&cli.Command{
+	Struct: &flags,
+	Usage:  "firestore command-line tool",
+})
+
+var client *firestore.Client
+
 func main() {
-	flag.Usage = func() {
-		out := flag.CommandLine.Output()
-		fmt.Fprintf(out, "Usage of %s:\n", os.Args[0])
-		fmt.Fprintln(out, "  get path1 [path2 ...]")
-		fmt.Fprintln(out, "  set path1 key1:value1 [key2:value2 ...]")
-		fmt.Fprintln(out, "  delete path1 [path2 ...]")
-		fmt.Fprintln(out, "  select (* | all | id, id, ...) from coll [where ...] [order by ..] [limit N]")
-		fmt.Fprintln(out, "  docs coll")
-		fmt.Fprintln(out)
-		flag.PrintDefaults()
-	}
 	flag.Parse()
-	if *project == "" {
+	if flags.Project == "" {
 		fmt.Fprintln(os.Stderr, "need -project")
 		flag.Usage()
-		os.Exit(1)
+		os.Exit(2)
 	}
-
 	ctx := context.Background()
-	client, err := firestore.NewClient(ctx, *project)
+	var err error
+	client, err = firestore.NewClient(ctx, flags.Project)
 	if err != nil {
 		die("creating client: %v", err)
 	}
-	if err := runCommand(ctx, client, flag.Args()); err != nil {
-		die("%v", err)
-	}
+	os.Exit(top.Main(context.Background()))
 }
 
-func runCommand(ctx context.Context, c *firestore.Client, args []string) error {
-	cmd := commands[args[0]]
-	if cmd == nil {
-		return fmt.Errorf("unknown command %q", args[0])
-	}
-	return cmd(ctx, c, args[1:])
+type set struct {
+	Path  string   `cli:"path to document"`
+	Pairs []string `cli:"name=KEY:VALUE, key-value pairs"`
 }
 
-func doSet(ctx context.Context, c *firestore.Client, args []string) error {
-	if len(args) < 2 {
-		return errors.New("usage: set path key1:value1 key2:value2 ...")
-	}
-	dr := c.Doc(args[0])
+func init() {
+	top.Command("set", &set{}, "set document fields")
+}
+
+func (c *set) Run(ctx context.Context) error {
+	dr := client.Doc(c.Path)
 	if dr == nil {
-		return fmt.Errorf("invalid path %q", args[0])
+		return fmt.Errorf("invalid path %q", c.Path)
 	}
-	mapval, err := pairsToMap(args[1:])
+	mapval, err := pairsToMap(c.Pairs)
 	if err != nil {
 		return err
 	}
@@ -85,12 +71,17 @@ func doSet(ctx context.Context, c *firestore.Client, args []string) error {
 	return err
 }
 
-func doGet(ctx context.Context, c *firestore.Client, args []string) error {
-	if len(args) < 1 {
-		return errors.New("usage: get path1 [path2 ...]")
-	}
-	for _, a := range args {
-		dr := c.Doc(a)
+type get struct {
+	Paths []string `cli:"name=PATH, min=1, paths to documents"`
+}
+
+func init() {
+	top.Command("get", &get{}, "get documents")
+}
+
+func (c *get) Run(ctx context.Context) error {
+	for _, a := range c.Paths {
+		dr := client.Doc(a)
 		if dr == nil {
 			return fmt.Errorf("invalid path %q", a)
 		}
@@ -103,12 +94,17 @@ func doGet(ctx context.Context, c *firestore.Client, args []string) error {
 	return nil
 }
 
-func doDelete(ctx context.Context, c *firestore.Client, args []string) error {
-	if len(args) < 1 {
-		return errors.New("usage: delete path1 [path2 ...]")
-	}
-	for _, a := range args {
-		dr := c.Doc(a)
+type delete struct {
+	Paths []string `cli:"name=PATH, min=1, paths to documents"`
+}
+
+func init() {
+	top.Command("delete", &delete{}, "delete documents")
+}
+
+func (c *delete) Run(ctx context.Context) error {
+	for _, a := range c.Paths {
+		dr := client.Doc(a)
 		if dr == nil {
 			return fmt.Errorf("invalid path %q", a)
 		}
@@ -119,12 +115,20 @@ func doDelete(ctx context.Context, c *firestore.Client, args []string) error {
 	return nil
 }
 
-func doSelect(ctx context.Context, c *firestore.Client, args []string) error {
-	q, err := parseQuery("select " + strings.Join(args, " "))
+type sel struct {
+	Args []string `cli:"name=FIELDS from COLLECTION..., min=1, select expression"`
+}
+
+func init() {
+	top.Command("select", &sel{}, "run a query")
+}
+
+func (c *sel) Run(ctx context.Context) error {
+	q, err := parseQuery("select " + strings.Join(c.Args, " "))
 	if err != nil {
 		return err
 	}
-	docsnaps, err := runQuery(ctx, c, q)
+	docsnaps, err := runQuery(ctx, client, q)
 	if err != nil {
 		return err
 	}
@@ -137,11 +141,16 @@ func doSelect(ctx context.Context, c *firestore.Client, args []string) error {
 	return nil
 }
 
-func doDocs(ctx context.Context, c *firestore.Client, args []string) error {
-	if len(args) != 1 {
-		return errors.New("usage: docs COLLECTION")
-	}
-	coll := c.Collection(args[0])
+type docs struct {
+	Collection string
+}
+
+func init() {
+	top.Command("docs", &docs{}, "list the IDs of all documents in a collection")
+}
+
+func (c *docs) Run(ctx context.Context) error {
+	coll := client.Collection(c.Collection)
 	docsnaps, err := coll.DocumentRefs(ctx).GetAll()
 	if err != nil {
 		return err
@@ -220,7 +229,7 @@ func convertString(s string) interface{} {
 }
 
 func displayDocs(w io.Writer, docsnaps []*firestore.DocumentSnapshot, cols []string) {
-	switch *format {
+	switch flags.Format {
 	case "table":
 		if len(cols) == 0 {
 			for _, ds := range docsnaps {
@@ -260,6 +269,6 @@ func displayDocs(w io.Writer, docsnaps []*firestore.DocumentSnapshot, cols []str
 		}
 
 	default:
-		die("unknown output format %q", *format)
+		die("unknown output format %q", flags.Format)
 	}
 }
