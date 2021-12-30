@@ -6,7 +6,7 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"flag"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -19,33 +19,32 @@ import (
 	"github.com/jba/cli"
 )
 
-var flags = struct {
+type globals struct {
 	Project string `cli:"flag=, Google Cloud project ID"`
 	Format  string `cli:"flag=, oneof=table|json, output format"`
-}{
-	Format: "table",
+	client  *firestore.Client
 }
 
+var global = &globals{Format: "table"}
+
 var top = cli.Top(&cli.Command{
-	Struct: &flags,
+	Struct: global,
 	Usage:  "firestore command-line tool",
 })
 
-var client *firestore.Client
+func (g *globals) Before(ctx context.Context) error {
+	if g.Project == "" {
+		return cli.NewUsageError(errors.New("need -project"))
+	}
+	var err error
+	g.client, err = firestore.NewClient(ctx, g.Project)
+	if err != nil {
+		return fmt.Errorf("creating client: %v", err)
+	}
+	return nil
+}
 
 func main() {
-	flag.Parse()
-	if flags.Project == "" {
-		fmt.Fprintln(os.Stderr, "need -project")
-		flag.Usage()
-		os.Exit(2)
-	}
-	ctx := context.Background()
-	var err error
-	client, err = firestore.NewClient(ctx, flags.Project)
-	if err != nil {
-		die("creating client: %v", err)
-	}
 	os.Exit(top.Main(context.Background()))
 }
 
@@ -59,7 +58,7 @@ func init() {
 }
 
 func (c *set) Run(ctx context.Context) error {
-	dr := client.Doc(c.Path)
+	dr := global.client.Doc(c.Path)
 	if dr == nil {
 		return fmt.Errorf("invalid path %q", c.Path)
 	}
@@ -81,7 +80,7 @@ func init() {
 
 func (c *get) Run(ctx context.Context) error {
 	for _, a := range c.Paths {
-		dr := client.Doc(a)
+		dr := global.client.Doc(a)
 		if dr == nil {
 			return fmt.Errorf("invalid path %q", a)
 		}
@@ -104,7 +103,7 @@ func init() {
 
 func (c *delete) Run(ctx context.Context) error {
 	for _, a := range c.Paths {
-		dr := client.Doc(a)
+		dr := global.client.Doc(a)
 		if dr == nil {
 			return fmt.Errorf("invalid path %q", a)
 		}
@@ -128,7 +127,7 @@ func (c *sel) Run(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	docsnaps, err := runQuery(ctx, client, q)
+	docsnaps, err := runQuery(ctx, global.client, q)
 	if err != nil {
 		return err
 	}
@@ -150,7 +149,7 @@ func init() {
 }
 
 func (c *docs) Run(ctx context.Context) error {
-	coll := client.Collection(c.Collection)
+	coll := global.client.Collection(c.Collection)
 	docsnaps, err := coll.DocumentRefs(ctx).GetAll()
 	if err != nil {
 		return err
@@ -229,7 +228,7 @@ func convertString(s string) interface{} {
 }
 
 func displayDocs(w io.Writer, docsnaps []*firestore.DocumentSnapshot, cols []string) {
-	switch flags.Format {
+	switch global.Format {
 	case "table":
 		if len(cols) == 0 {
 			for _, ds := range docsnaps {
@@ -269,6 +268,6 @@ func displayDocs(w io.Writer, docsnaps []*firestore.DocumentSnapshot, cols []str
 		}
 
 	default:
-		die("unknown output format %q", flags.Format)
+		die("unknown output format %q", global.Format)
 	}
 }

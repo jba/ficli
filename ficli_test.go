@@ -16,16 +16,16 @@ import (
 func TestFirestore(t *testing.T) {
 	type data = map[string]interface{}
 
-	if flags.Project == "" {
+	if global.Project == "" {
 		t.Skip("no -project")
 	}
 	ctx := context.Background()
 	var err error
-	client, err = firestore.NewClient(ctx, flags.Project)
+	global.client, err = firestore.NewClient(ctx, global.Project)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer client.Close()
+	defer global.client.Close()
 
 	run := func(s string) {
 		t.Helper()
@@ -46,7 +46,7 @@ func TestFirestore(t *testing.T) {
 		"pop":  int64(1234),
 	}
 
-	ds, err := client.Doc("cities/detroit").Get(ctx)
+	ds, err := global.client.Doc("cities/detroit").Get(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +73,7 @@ func TestFirestore(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		dss, err := runQuery(ctx, client, q)
+		dss, err := runQuery(ctx, global.client, q)
 		if err != nil {
 			t.Fatalf("%q: %v", test.q, err)
 		}
@@ -87,7 +87,7 @@ func TestFirestore(t *testing.T) {
 	}
 
 	run("delete cities/miami")
-	ds, err = client.Doc("cities/miami").Get(ctx)
+	ds, err = global.client.Doc("cities/miami").Get(ctx)
 	if status.Code(err) != codes.NotFound {
 		t.Fatalf("got %v, wanted NotFound", err)
 	}
