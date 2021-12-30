@@ -1,6 +1,5 @@
 // Copyright 2021 Jonathan Amsterdam.
 
-// A simple command-line client for Google Cloud Firestore.
 package main
 
 import (
@@ -22,10 +21,14 @@ import (
 type globals struct {
 	Project string `cli:"flag=, Google Cloud project ID"`
 	Format  string `cli:"flag=, oneof=table|json, output format"`
-	client  *firestore.Client
+
+	client *firestore.Client
 }
 
-var global = &globals{Format: "table"}
+var global = &globals{
+	Project: os.Getenv("FICLI_PROJECT"),
+	Format:  "table",
+}
 
 var top = cli.Top(&cli.Command{
 	Struct: global,
@@ -115,7 +118,7 @@ func (c *delete) Run(ctx context.Context) error {
 }
 
 type sel struct {
-	Args []string `cli:"name=FIELDS from COLLECTION..., min=1, select expression"`
+	Args []string `cli:"name=FIELDS from COLLECTION, min=1, select expression"`
 }
 
 func init() {

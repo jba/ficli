@@ -1,5 +1,6 @@
 # ficli: a Firestore command-line tool
 
+
 ## Installation
 
 ```
