@@ -91,9 +91,52 @@ func (c *get) Run(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		fmt.Printf("%s: %v\n", a, ds.Data())
+		printMap(ds.Data(), 0)
 	}
 	return nil
+}
+
+func printValue(v interface{}, indent int, spaceBefore bool) {
+	switch v := v.(type) {
+	case map[string]interface{}:
+		if spaceBefore {
+			fmt.Println()
+		}
+		printMap(v, indent)
+	case []interface{}:
+		if spaceBefore {
+			fmt.Println()
+		}
+		for _, e := range v {
+			fmt.Print("- ")
+			printValue(e, indent+1, false)
+		}
+	case string:
+		if spaceBefore {
+			fmt.Print(" ")
+		}
+		fmt.Printf("%q\n", v)
+	default:
+		if spaceBefore {
+			fmt.Print(" ")
+		}
+		fmt.Printf("%+v\n", v)
+	}
+}
+
+func printMap(m map[string]interface{}, indent int) {
+	var keys []string
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		for i := 0; i < indent; i++ {
+			fmt.Print("  ")
+		}
+		fmt.Printf("%s:", k)
+		printValue(m[k], indent+1, true)
+	}
 }
 
 type delete struct {

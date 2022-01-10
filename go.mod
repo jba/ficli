@@ -16,7 +16,7 @@ require (
 	github.com/googleapis/gax-go/v2 v2.1.1 // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect
 	github.com/hashicorp/go-multierror v1.0.0 // indirect
-	github.com/jba/cli v0.4.0 // indirect
+	github.com/jba/cli v0.5.0 // indirect
 	github.com/posener/complete/v2 v2.0.1-alpha.13 // indirect
 	github.com/posener/script v1.1.5 // indirect
 	go.opencensus.io v0.23.0 // indirect
@@ -30,5 +30,3 @@ require (
 	google.golang.org/genproto v0.0.0-20211028162531-8db9c33dc351 // indirect
 	google.golang.org/protobuf v1.27.1 // indirect
 )
-
-replace github.com/jba/cli => ../cli
