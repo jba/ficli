@@ -16,18 +16,21 @@ import (
 
 	"cloud.google.com/go/firestore"
 	"github.com/jba/cli"
+	"google.golang.org/api/option"
 )
 
 type globals struct {
-	Project string `cli:"flag=, Google Cloud project ID"`
-	Format  string `cli:"flag=, oneof=table|json, output format"`
+	Project     string `cli:"flag=, Google Cloud project ID"`
+	Format      string `cli:"flag=, oneof=table|json, output format"`
+	Impersonate string `cli:"flag=, service account to impersonate"`
 
 	client *firestore.Client
 }
 
 var global = &globals{
-	Project: os.Getenv("FICLI_PROJECT"),
-	Format:  "table",
+	Project:     os.Getenv("FICLI_PROJECT"),
+	Impersonate: os.Getenv("FICLI_IMPERSONATE"),
+	Format:      "table",
 }
 
 var top = cli.Top(&cli.Command{
@@ -39,8 +42,16 @@ func (g *globals) Before(ctx context.Context) error {
 	if g.Project == "" {
 		return cli.NewUsageError(errors.New("need -project"))
 	}
+	var opts []option.ClientOption
+	if g.Impersonate != "" {
+		opts = []option.ClientOption{
+			option.ImpersonateCredentials(g.Impersonate),
+			option.WithScopes("https://www.googleapis.com/auth/cloud-platform",
+				"https://www.googleapis.com/auth/datastore"),
+		}
+	}
 	var err error
-	g.client, err = firestore.NewClient(ctx, g.Project)
+	g.client, err = firestore.NewClient(ctx, g.Project, opts...)
 	if err != nil {
 		return fmt.Errorf("creating client: %v", err)
 	}

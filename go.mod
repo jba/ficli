@@ -5,6 +5,7 @@ go 1.17
 require (
 	cloud.google.com/go/firestore v1.6.1
 	github.com/google/go-cmp v0.5.6
+	github.com/jba/cli v0.5.0
 	github.com/jba/parco v0.0.3
 	google.golang.org/grpc v1.40.0
 )
@@ -16,7 +17,6 @@ require (
 	github.com/googleapis/gax-go/v2 v2.1.1 // indirect
 	github.com/hashicorp/errwrap v1.0.0 // indirect
 	github.com/hashicorp/go-multierror v1.0.0 // indirect
-	github.com/jba/cli v0.5.0 // indirect
 	github.com/posener/complete/v2 v2.0.1-alpha.13 // indirect
 	github.com/posener/script v1.1.5 // indirect
 	go.opencensus.io v0.23.0 // indirect
