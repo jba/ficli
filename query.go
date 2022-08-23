@@ -53,7 +53,7 @@ func init() {
 		Opt    = parco.Optional
 		Regexp = parco.Regexp
 
-		ident = Regexp("identifier", `[_\pL][_\pL\p{Nd}]*`)
+		ident = Regexp("identifier", `[_\pL][_\pL\p{Nd}.]*`)
 
 		path = parco.While("path", func(r rune) bool {
 			return unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_' || r == '-' || r == '/'

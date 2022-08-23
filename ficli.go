@@ -305,7 +305,7 @@ func displayDocs(w io.Writer, docsnaps []*firestore.DocumentSnapshot, cols []str
 					if s == "ID" {
 						return ds.Ref.ID
 					}
-					return d[s]
+					return extractPath(s, d)
 				}
 
 				fmt.Fprint(tw, field(cols[0]))
@@ -327,4 +327,17 @@ func displayDocs(w io.Writer, docsnaps []*firestore.DocumentSnapshot, cols []str
 	default:
 		die("unknown output format %q", global.Format)
 	}
+}
+
+func extractPath(pathname string, m map[string]any) any {
+	i := strings.IndexByte(pathname, '.')
+	if i < 0 {
+		return m[pathname]
+	}
+	key := pathname[:i]
+	v, ok := m[key].(map[string]any)
+	if !ok {
+		return fmt.Sprintf("(!BADKEY:%q)", key)
+	}
+	return extractPath(pathname[i+1:], v)
 }

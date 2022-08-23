@@ -1,6 +1,6 @@
 module github.com/jba/ficli
 
-go 1.17
+go 1.18
 
 require (
 	cloud.google.com/go/firestore v1.6.1
@@ -30,3 +30,5 @@ require (
 	google.golang.org/genproto v0.0.0-20211028162531-8db9c33dc351 // indirect
 	google.golang.org/protobuf v1.27.1 // indirect
 )
+
+
